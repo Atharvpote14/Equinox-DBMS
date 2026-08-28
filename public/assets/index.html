@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Equinox Command Center | Beyond Money</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/assets/assets/main-CuVLP1xY.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/assets/main-BwWknnTh.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="/vendor/qrcode.min.js"></script>
+    <script src="/vendor/html5-qrcode.min.js"></script>
+    <script>
+      // Suppress ALL Razorpay errors and biometric collection in development
+      window.suppressRazorpayErrors = true;
+      const originalError = console.error;
+      console.error = function(...args) {
+        const msg = String(args[0] || '');
+        if (msg.includes('Refused to get unsafe header') ||
+            msg.includes('Permissions policy') ||
+            msg.includes('localhost:7070') ||
+            msg.includes('sardine')) {
+          return; // Silently ignore Razorpay errors
+        }
+        return originalError.apply(console, args);
+      };
+
+      // Block all Razorpay tracking requests
+      const originalFetch = window.fetch;
+      window.fetch = function(...args) {
+        const url = String(args[0] || '');
+        if (url.includes('localhost:7070') || url.includes('localhost:37857') ||
+            url.includes('sardine.ai') || url.includes('fingerprint')) {
+          return Promise.reject(new Error('Blocked'));
+        }
+        return originalFetch.apply(this, args);
+      };
+
+      // Override XMLHttpRequest to block problematic headers
+      const originalOpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function(method, url) {
+        if (String(url).includes('localhost:7070') || String(url).includes('sardine')) {
+          this.abort();
+          return;
+        }
+        return originalOpen.apply(this, arguments);
+      };
+    </script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
+  </body>
+</html>

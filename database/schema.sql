@@ -252,8 +252,7 @@ CREATE INDEX idx_txn_created ON transactions_master(created_at);
 CREATE INDEX idx_notif_user ON notifications(user_id, is_read);
 CREATE INDEX idx_login_user ON login_history(user_id, created_at);
 
-DELIMITER $$
-
+-- Trigger 1: enforce_card_limit
 CREATE TRIGGER enforce_card_limit
 BEFORE INSERT ON equinox_cards
 FOR EACH ROW
@@ -263,8 +262,9 @@ BEGIN
   IF card_count >= 3 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Maximum 3 cards allowed per wallet';
   END IF;
-END$$
+END;
 
+-- Trigger 2: update_pool_raised
 CREATE TRIGGER update_pool_raised
 AFTER INSERT ON pool_contributions
 FOR EACH ROW
@@ -272,8 +272,9 @@ BEGIN
   UPDATE community_pools
   SET raised_amount = raised_amount + NEW.amount
   WHERE pool_id = NEW.pool_id;
-END$$
+END;
 
+-- Trigger 3: close_pool_on_target
 CREATE TRIGGER close_pool_on_target
 BEFORE UPDATE ON community_pools
 FOR EACH ROW
@@ -281,9 +282,10 @@ BEGIN
   IF NEW.raised_amount >= NEW.target_amount AND NEW.status = 'ACTIVE' THEN
     SET NEW.status = 'COMPLETED';
   END IF;
-END$$
+END;
 
-DROP PROCEDURE IF EXISTS recalculate_trust_score$$
+-- Procedure: recalculate_trust_score
+DROP PROCEDURE IF EXISTS recalculate_trust_score;
 CREATE PROCEDURE recalculate_trust_score(IN p_user_id CHAR(36))
 BEGIN
   DECLARE v_sent INT DEFAULT 0;
@@ -342,15 +344,17 @@ BEGIN
 
   INSERT INTO trust_history (log_id, user_id, score_delta, reason)
   VALUES (UUID(), p_user_id, v_score - v_previous, 'Trust score recalculated');
-END$$
+END;
 
+-- Trigger: recalc_trust_on_review
 CREATE TRIGGER recalc_trust_on_review
 AFTER INSERT ON user_reviews
 FOR EACH ROW
 BEGIN
   CALL recalculate_trust_score(NEW.subject_id);
-END$$
+END;
 
+-- Trigger: notify_on_transaction
 CREATE TRIGGER notify_on_transaction
 AFTER INSERT ON transactions_master
 FOR EACH ROW
@@ -381,9 +385,10 @@ BEGIN
       'PAYMENT'
     );
   END IF;
-END$$
+END;
 
-DROP PROCEDURE IF EXISTS activate_wallet$$
+-- Procedure: activate_wallet
+DROP PROCEDURE IF EXISTS activate_wallet;
 CREATE PROCEDURE activate_wallet(
   IN p_user_id CHAR(36),
   IN p_latitude DECIMAL(9,6),
@@ -437,9 +442,10 @@ BEGIN
   COMMIT;
 
   SELECT 1 AS success, v_wallet_id AS wallet_id, 500.00 AS balance, 'Wallet activated' AS message;
-END$$
+END;
 
-DROP PROCEDURE IF EXISTS transfer_eq$$
+-- Procedure: transfer_eq
+DROP PROCEDURE IF EXISTS transfer_eq;
 CREATE PROCEDURE transfer_eq(
   IN p_sender_wallet CHAR(36),
   IN p_receiver_wallet CHAR(36),
@@ -520,9 +526,10 @@ BEGIN
   COMMIT;
 
   SELECT 1 AS success, p_amount AS amount_transferred, 'Transfer complete' AS message;
-END$$
+END;
 
-DROP PROCEDURE IF EXISTS contribute_pool$$
+-- Procedure: contribute_pool
+DROP PROCEDURE IF EXISTS contribute_pool;
 CREATE PROCEDURE contribute_pool(
   IN p_donor_wallet CHAR(36),
   IN p_pool_id CHAR(36),
@@ -595,9 +602,10 @@ BEGIN
   COMMIT;
 
   SELECT 1 AS success, p_amount AS amount_contributed, 'Pool contribution complete' AS message;
-END$$
+END;
 
-DROP PROCEDURE IF EXISTS settle_contract$$
+-- Procedure: settle_contract
+DROP PROCEDURE IF EXISTS settle_contract;
 CREATE PROCEDURE settle_contract(
   IN p_contract_id CHAR(36),
   IN p_consumer_wallet CHAR(36),
@@ -695,6 +703,4 @@ BEGIN
   COMMIT;
 
   SELECT 1 AS success, v_total AS settled_amount, 'Contract settled successfully' AS message;
-END$$
-
-DELIMITER ;
+END;

@@ -23,7 +23,7 @@ final class App
 
         try {
             if ($path === '/' && $method === 'GET') {
-                $this->serveFile(dirname(__DIR__) . '/templates/app.html', 'text/html; charset=UTF-8');
+                $this->serveReactApp();
                 return;
             }
 
@@ -32,13 +32,8 @@ final class App
                 return;
             }
 
-            if ($path === '/assets/styles.css' && $method === 'GET') {
-                $this->serveFile(dirname(__DIR__) . '/templates/styles.css', 'text/css');
-                return;
-            }
-
-            if ($path === '/assets/app.js' && $method === 'GET') {
-                $this->serveFile(dirname(__DIR__) . '/templates/app.js', 'application/javascript');
+            if (str_starts_with($path, '/assets/') && $method === 'GET') {
+                $this->serveAsset($path);
                 return;
             }
 
@@ -172,6 +167,7 @@ final class App
 
     private function register(array $input): void
     {
+        error_log('REGISTER INPUT: ' . json_encode($input));
         $db = $this->db();
         $name = trim((string) ($input['full_name'] ?? ''));
         $email = trim((string) ($input['email'] ?? ''));
@@ -179,6 +175,8 @@ final class App
         $dob = trim((string) ($input['date_of_birth'] ?? ''));
         $phone = trim((string) ($input['phone_number'] ?? ''));
         $city = trim((string) ($input['location_city'] ?? ''));
+
+        error_log("PARSED: name='$name' email='$email' pass_len=" . strlen($password) . " dob='$dob'");
 
         if ($name === '' || $email === '' || $password === '' || $dob === '') {
             Response::json(['success' => false, 'error' => 'Please complete all required fields before creating the account.'], 422);
@@ -1416,6 +1414,96 @@ final class App
         // Disable sensor access for third-party scripts (Razorpay biometrics)
         header('Permissions-Policy: accelerometer=(), gyroscope=(), magnetometer=(), camera=(), microphone=()');
         readfile($path);
+    }
+
+    private function serveReactApp(): void
+    {
+        $manifestPath = dirname(__DIR__) . '/public/assets/.vite/manifest.json';
+        $html = '';
+        
+        if (file_exists($manifestPath)) {
+            $manifest = json_decode(file_get_contents($manifestPath), true);
+            $entry = $manifest['index.html'] ?? null;
+            
+            if ($entry) {
+                $jsPath = '/assets/' . $entry['file'];
+                $cssPaths = '';
+                if (!empty($entry['css'])) {
+                    foreach ($entry['css'] as $cssFile) {
+                        $cssPaths .= '<link rel="stylesheet" href="/assets/' . $cssFile . '">';
+                    }
+                }
+                
+                $html = '<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equinox Command Center | Beyond Money</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    ' . $cssPaths . '
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="' . $jsPath . '"></script>
+</body>
+</html>';
+            }
+        }
+        
+        if ($html === '') {
+            // Fallback to development mode
+            $html = '<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equinox Command Center | Beyond Money</title>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="http://localhost:5173/src/main.jsx"></script>
+</body>
+</html>';
+        }
+        
+        header('Content-Type: text/html; charset=UTF-8');
+        echo $html;
+    }
+
+    private function serveAsset(string $path): void
+    {
+        $filePath = dirname(__DIR__) . '/public' . $path;
+        
+        if (!file_exists($filePath) || is_dir($filePath)) {
+            http_response_code(404);
+            return;
+        }
+        
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        $mimeTypes = [
+            'js' => 'application/javascript',
+            'css' => 'text/css',
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'svg' => 'image/svg+xml',
+            'json' => 'application/json',
+            'ico' => 'image/x-icon',
+            'woff' => 'font/woff',
+            'woff2' => 'font/woff2',
+            'ttf' => 'font/ttf',
+        ];
+        
+        if (isset($mimeTypes[$extension])) {
+            header('Content-Type: ' . $mimeTypes[$extension]);
+        }
+        
+        header('Cache-Control: public, max-age=31536000, immutable');
+        header('Access-Control-Allow-Origin: *');
+        readfile($filePath);
     }
 
     private function queryColumns(PDOStatement $stmt, array $rows): array

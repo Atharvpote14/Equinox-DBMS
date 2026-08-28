@@ -1,0 +1,48 @@
+# PHP
+/vendor/
+composer.phar
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend (React/Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/*.local
+
+# Backend build artifacts
+public/assets/.vite/
+public/assets/assets/
+public/assets/index.html
+
+# Logs
+*.log
+php_errors.log
+
+# Database
+*.sql
+*.sqlite
+
+# Testing
+coverage/
+.nyc_output/
+
+# Cache
+.php-cs-fixer.cache
+.phpunit.result.cache
